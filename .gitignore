@@ -1,0 +1,5 @@
+# Built from UTAGE.cs (see README)
+*.exe
+# Machine-specific path to the vocal-separation Python
+tools/python-path.txt
+__pycache__/

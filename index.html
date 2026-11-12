@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UTAGE</title>
+<link rel="icon" href="utage.png">
+<style>
+  :root {
+    --bg: #0b0620; --panel: rgba(20, 10, 52, .88); --line: rgba(255, 255, 255, .14);
+    --pink: #ff3d9a; --orange: #ff7a2e; --gold: #ffd34d; --cyan: #2ee6ff; --blue: #3d6bff; --violet: #9a6bff; --green: #1fc46f; --lime: #9cff5a;
+    --text: #fff; --muted: #c9bdf0;
+    --font: "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "Hiragino Sans", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); font-weight: 600; }
+  canvas#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #bgv { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; display: none; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; padding: 24px; }
+  .screen.on { display: flex; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  button:focus-visible, input:focus-visible, label:focus-within { outline: 3px solid var(--cyan); outline-offset: 3px; }
+  h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: .04em; background: linear-gradient(90deg, #fff, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* ---- home: karaoke-room touch panel ---- */
+  #title { justify-content: flex-start; padding: 0; }
+  .topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px; background: linear-gradient(rgba(0,0,0,.6), rgba(0,0,0,0)); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 46px; height: 46px; filter: drop-shadow(0 0 10px rgba(255,61,154,.6)); }
+  .brand b { font-size: 36px; font-weight: 900; font-style: italic; letter-spacing: .06em; background: linear-gradient(90deg, var(--pink), var(--orange) 55%, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 12px rgba(255,61,154,.5)); }
+  .brand small { font-size: 14px; color: var(--muted); letter-spacing: .2em; }
+  .top-r { display: flex; align-items: center; gap: 12px; }
+  #clock { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 0 12px rgba(46,230,255,.7); margin-right: 6px; }
+  .chip { border: 1px solid var(--line); background: rgba(255,255,255,.08); padding: 8px 18px; border-radius: 999px; font-weight: 700; }
+  .chip:hover { background: rgba(255,255,255,.18); }
+  .tiles { flex: 1; width: min(1200px, 100%); min-height: 0; display: grid; grid-template-columns: 1.55fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; padding: 6px 28px 20px; }
+  .tile { position: relative; overflow: hidden; border: 0; border-radius: 26px; padding: 22px 24px; text-align: left; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; color: #fff;
+    box-shadow: 0 12px 30px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,255,255,.18), 0 0 34px var(--glow, transparent); transition: transform .15s, filter .15s; }
+  .tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 48%; background: linear-gradient(rgba(255,255,255,.4), rgba(255,255,255,.05)); border-radius: 26px 26px 60% 60% / 26px 26px 22px 22px; pointer-events: none; }
+  .tile:hover { transform: translateY(-4px) scale(1.015); filter: brightness(1.12); }
+  .tile b { position: relative; font-size: clamp(22px, 2.4vw, 32px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,.45); }
+  .tile small { position: relative; font-size: 15px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,.45); }
+  .tile svg { position: absolute; right: 18px; top: 18px; width: 30%; max-width: 76px; height: auto; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+  .tile.hero { grid-row: span 2; }
+  .tile.hero b { font-size: clamp(36px, 4.6vw, 64px); }
+  .tile.hero small { font-size: 18px; }
+  .tile.hero svg { width: 44%; max-width: 260px; right: 7%; top: 9%; stroke-width: 1.6; }
+  /* light at the top, deep at the bottom where the white text sits */
+  .t-search { background: linear-gradient(165deg, #ffb12e, #ff5a3d 45%, #e0207a); --glow: rgba(255,61,154,.45); }
+  .t-quick  { background: linear-gradient(165deg, #22d3ff, #2f5bff 75%); --glow: rgba(46,230,255,.35); }
+  .t-hist   { background: linear-gradient(165deg, #ff4fc8, #7a4dff 75%); --glow: rgba(154,107,255,.35); }
+  .t-import { background: linear-gradient(165deg, #63e04a, #0f9f5b 75%); --glow: rgba(99,224,74,.3); }
+  .t-calib  { background: linear-gradient(165deg, #f5b20f, #e0480f 75%); --glow: rgba(255,138,61,.35); }
+  .ticker { width: 100%; overflow: hidden; white-space: nowrap; background: rgba(0,0,0,.6); border-top: 1px solid var(--line); padding: 10px 0; font-size: 17px; color: var(--gold); }
+  .ticker span { display: inline-block; padding-left: 100%; animation: tick 30s linear infinite; }
+  @keyframes tick { to { transform: translateX(-100%); } }
+  @media (max-width: 820px) { .tiles { grid-template-columns: 1fr 1fr; grid-template-rows: auto; overflow: auto; } .tile.hero { grid-column: span 2; grid-row: auto; min-height: 180px; } .tile { min-height: 130px; } #clock { display: none; } }
+
+  /* ---- panels ---- */
+  .panel { width: min(960px, 100%); max-height: 100%; overflow: auto; padding: 24px 30px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 0 0 2px rgba(255,61,154,.25), 0 24px 60px rgba(0,0,0,.55); }
+  .bar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+  .btn { border: 1px solid var(--line); background: rgba(255,255,255,.08); padding: 9px 22px; border-radius: 999px; font-weight: 700; }
+  .btn:hover { background: rgba(255,255,255,.18); }
+  .btn.primary { border: 0; background: linear-gradient(90deg, var(--pink), var(--orange)); box-shadow: 0 0 18px rgba(255,61,154,.45); }
+  .btn.primary:hover { filter: brightness(1.1); }
+  .toggles { display: flex; gap: 22px; flex-wrap: wrap; margin: 12px 4px 4px; }
+  .toggles label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--pink); }
+  input[type=search] { width: 100%; font: inherit; font-size: 20px; color: #fff; padding: 12px 20px 12px 50px; border-radius: 999px; border: 2px solid rgba(46,230,255,.55); outline: none;
+    background: rgba(0,0,0,.35) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='%232ee6ff' stroke-width='2.5'><circle cx='9' cy='9' r='7'/><path d='M14 14l6 6'/></svg>") no-repeat 18px center; }
+  input[type=search]::placeholder { color: rgba(255,255,255,.45); }
+  p.note { font-size: 14px; line-height: 1.8; color: var(--muted); margin: 8px 4px; }
+  .songlist { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .songlist li { display: flex; gap: 8px; }
+  .songlist .empty { padding: 18px; color: var(--muted); }
+  .row { flex: 1; display: grid; grid-template-columns: 74px 1fr auto auto; align-items: center; gap: 16px; text-align: left; border: 0; border-left: 5px solid transparent; border-radius: 14px; padding: 12px 18px; background: rgba(255,255,255,.07); transition: background .12s; }
+  .row:hover { background: rgba(255,61,154,.2); border-left-color: var(--pink); }
+  .row .no { font-variant-numeric: tabular-nums; color: var(--cyan); font-size: 18px; letter-spacing: .05em; }
+  .row .ttl { font-size: 21px; font-weight: 700; }
+  .row .ttl small { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+  .row .best { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .row .go { padding: 6px 16px; border-radius: 999px; background: linear-gradient(90deg, var(--pink), var(--orange)); font-size: 15px; }
+  .del { width: 44px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.05); color: var(--muted); }
+  .del:hover { background: rgba(255,60,60,.3); color: #fff; }
+  #lyricsBox h3 { margin: 18px 0 0; font-size: 20px; color: var(--cyan); }
+  .lyform { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .lyform input { flex: 1 1 200px; font: inherit; font-size: 18px; color: #fff; padding: 10px 18px; border-radius: 999px; border: 2px solid rgba(46,230,255,.55); background: rgba(0,0,0,.35); outline: none; }
+  .lyform input::placeholder { color: rgba(255,255,255,.45); }
+  .log { font-size: 15px; line-height: 1.7; min-height: 60px; white-space: pre-wrap; color: var(--gold); }
+  table.hist { width: 100%; border-collapse: collapse; font-size: 16px; }
+  table.hist td, table.hist th { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  table.hist th { color: var(--cyan); font-weight: 700; }
+  input[type=range] { width: 320px; accent-color: var(--pink); vertical-align: middle; }
+  .big { font-size: 40px; font-weight: 800; color: var(--gold); }
+
+  /* ---- results ---- */
+  .result-card { width: min(920px, 100%); max-height: 100%; overflow: auto; padding: 22px 36px 26px; border-radius: 26px; background: var(--panel); border: 1px solid var(--line);
+    box-shadow: 0 0 0 2px rgba(255,61,154,.4), 0 0 70px rgba(255,61,154,.25); animation: pop .5s ease-out both; }
+  @keyframes pop { from { opacity: 0; transform: scale(.94); } }
+  .result-card h2 { text-align: center; }
+  .result-card .song { text-align: center; color: var(--muted); margin: 4px 0 6px; }
+  .score-row { display: flex; align-items: center; justify-content: center; gap: 34px; margin: 2px 0 10px; }
+  .score { font-size: 100px; font-weight: 900; line-height: 1.05; font-variant-numeric: tabular-nums; background: linear-gradient(#fff 15%, var(--gold) 55%, var(--orange)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 18px rgba(255,211,77,.45)); }
+  .score small { font-size: 32px; margin-left: 6px; }
+  .rank { width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; font-size: 58px; font-weight: 900; opacity: 0;
+    background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.55), transparent 42%), linear-gradient(140deg, var(--pink), var(--violet)); box-shadow: 0 0 34px rgba(255,61,154,.7), inset 0 0 0 3px rgba(255,255,255,.5); }
+  .rank.stamp { animation: stamp .4s cubic-bezier(.3,1.6,.6,1) forwards; }
+  @keyframes stamp { from { opacity: 0; transform: scale(1.9) rotate(-20deg); } to { opacity: 1; transform: none; } }
+  .res-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: center; }
+  @media (max-width: 760px) { .res-grid { grid-template-columns: 1fr; } .score { font-size: 66px; } }
+  table.tech { border-collapse: collapse; font-size: 18px; width: 100%; }
+  table.tech td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.tech td:last-child { text-align: right; color: var(--cyan); font-variant-numeric: tabular-nums; }
+  .gauge { position: relative; height: 10px; border-radius: 5px; margin: 8px 0 2px; background: linear-gradient(90deg, var(--cyan), #fff 50%, var(--pink)); }
+  .gauge i { position: absolute; top: -6px; width: 6px; height: 22px; margin-left: -3px; border-radius: 3px; background: #fff; box-shadow: 0 0 8px #fff; transition: left 1s; }
+  .gauge-l { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .comment { font-size: 18px; line-height: 1.7; border-left: 5px solid var(--pink); padding-left: 14px; margin: 16px 0; }
+
+  /* ---- in-song control bar: lyrics timing + volume ---- */
+  #playbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 18px; align-items: center; white-space: nowrap;
+    padding: 6px 16px; border-radius: 999px; background: rgba(10,6,30,.75); border: 1px solid var(--line); font-size: 14px; opacity: .55; transition: opacity .2s; }
+  #playbar:hover, #playbar:focus-within { opacity: 1; }
+  #playbar[hidden] { display: none; }
+  .pb { display: flex; align-items: center; gap: 6px; }
+  .pb button { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.1); font-weight: 800; }
+  .pb button:hover { background: rgba(255,61,154,.35); }
+  .pb b { min-width: 62px; text-align: center; font-variant-numeric: tabular-nums; color: var(--cyan); cursor: pointer; }
+  .pb input[type=range] { width: 90px; }
+  .pb input:disabled { opacity: .35; }
+  .pb-saved { color: var(--lime); }
+  /* ---- adjust mode: transport + timeline ---- */
+  #editbar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; width: min(920px, calc(100% - 32px)); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+    padding: 8px 14px; border-radius: 22px; background: rgba(10,6,30,.9); border: 1px solid var(--line); box-shadow: 0 0 0 1px rgba(46,230,255,.25); }
+  #editbar[hidden] { display: none; }
+  #editbar button:not(.btn) { flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.1); font-size: 14px; }
+  #editbar button.ed-play { width: 46px; height: 46px; border: 0; font-size: 18px; background: linear-gradient(90deg, var(--pink), var(--orange)); box-shadow: 0 0 14px rgba(255,61,154,.5); }
+  .ed-break { flex-basis: 100%; height: 0; }
+  .ed-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+  #edLine { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #edLine b { color: var(--cyan); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  #edPos { flex: 1; min-width: 80px; accent-color: var(--cyan); }
+  #edTime { flex: none; min-width: 150px; text-align: right; font-variant-numeric: tabular-nums; color: var(--cyan); }
+  #loading .big { animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .4; } }
+  @media (prefers-reduced-motion: reduce) { .ticker span { animation: none; padding-left: 28px; } .result-card, .rank.stamp { animation: none; } .rank.stamp { opacity: 1; } }
+  #toast { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); background: rgba(20,10,52,.95); border: 1px solid var(--pink); padding: 10px 20px; border-radius: 999px; display: none; font-size: 15px; z-index: 9; }
+</style>
+</head>
+<body>
+<video id="bgv" muted playsinline preload="auto"></video>
+<canvas id="stage"></canvas>
+
+<section id="title" class="screen">
+  <header class="topbar">
+    <div class="brand"><img src="utage.png" alt=""><b>UTAGE</b><small data-i18n="tagline"></small></div>
+    <div class="top-r">
+      <span id="clock"></span>
+      <button class="chip" id="langBtn"></button>
+      <button class="chip" data-act="fullscreen" data-i18n="fullscreen"></button>
+    </div>
+  </header>
+  <main class="tiles">
+    <button class="tile hero t-search" data-go="songs">
+      <svg viewBox="0 0 64 64"><rect x="22" y="6" width="20" height="32" rx="10"/><path d="M14 30a18 18 0 0 0 36 0M32 48v10M22 58h20"/><path d="M27 14h10M27 20h10M27 26h10" stroke-width="1.2"/></svg>
+      <b data-i18n="tileSing"></b><small data-i18n="tileSingSub"></small>
+    </button>
+    <button class="tile t-quick" id="quick">
+      <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><path d="M27 21l16 11-16 11z"/></svg>
+      <b data-i18n="tileQuick"></b><small data-i18n="demoTitle"></small>
+    </button>
+    <button class="tile t-hist" data-go="history">
+      <svg viewBox="0 0 64 64"><path d="M10 54h44M16 54V34M28 54V20M40 54V28M52 54V12"/></svg>
+      <b data-i18n="tileHistory"></b><small data-i18n="tileHistorySub"></small>
+    </button>
+    <button class="tile t-import" data-go="import">
+      <svg viewBox="0 0 64 64"><path d="M32 8v32M20 28l12 12 12-12M12 44v10h40V44"/></svg>
+      <b data-i18n="tileImport"></b><small>MP3 · WAV · FLAC · UltraStar</small>
+    </button>
+    <button class="tile t-calib" data-go="calib">
+      <svg viewBox="0 0 64 64"><path d="M12 20h40M12 32h40M12 44h40"/><circle cx="24" cy="20" r="5"/><circle cx="42" cy="32" r="5"/><circle cx="30" cy="44" r="5"/></svg>
+      <b data-i18n="tileCalib"></b><small data-i18n="tileCalibSub"></small>
+    </button>
+  </main>
+  <footer class="ticker"><span data-i18n="ticker"></span></footer>
+</section>
+
+<section id="songs" class="screen">
+  <div class="panel">
+    <div class="bar"><h2 data-i18n="tileSing"></h2><button class="btn" data-go="title" data-i18n="back"></button></div>
+    <input type="search" id="search" data-i18n-ph="searchPh" autocomplete="off">
+    <div class="toggles">
+      <label><input type="checkbox" id="optGuide" checked><span data-i18n="optGuide"></span></label>
+      <label><input type="checkbox" id="optCut" checked><span data-i18n="optCut"></span></label>
+    </div>
+    <p class="note" data-i18n="headphones"></p>
+    <ol class="songlist" id="songList"></ol>
+  </div>
+</section>
+
+<section id="import" class="screen">
+  <div class="panel">
+    <div class="bar"><h2 data-i18n="tileImport"></h2><button class="btn" data-go="title" data-i18n="back"></button></div>
+    <p class="note" data-i18n="importHelp"></p>
+    <div class="toggles">
+      <label id="optSepWrap"><input type="checkbox" id="optSep" checked><span data-i18n="optSep"></span></label>
+      <label><input type="checkbox" id="optFuri" checked><span data-i18n="optFuri"></span></label>
+      <label><input type="checkbox" id="optVideo" checked><span data-i18n="optVideo"></span></label>
+    </div>
+    <p><label class="btn primary"><span data-i18n="pickFiles"></span><input type="file" id="files" multiple accept=".txt,.lrc,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.webm,.mov,.m4v" hidden></label></p>
+    <div class="log" id="importLog"></div>
+    <div id="lyricsBox" hidden>
+      <h3 id="lyFile"></h3>
+      <p class="note" data-i18n="lyHelp"></p>
+      <div class="lyform">
+        <input type="text" id="lyTitle" data-i18n-ph="lyTitle" autocomplete="off">
+        <input type="text" id="lyArtist" data-i18n-ph="lyArtist" autocomplete="off">
+        <button class="btn primary" id="lySearch" data-i18n="lySearch"></button>
+      </div>
+      <ol class="songlist" id="lyResults"></ol>
+      <p><button class="btn" id="lyNone" data-i18n="lyNone"></button> <button class="btn" id="lySkip" data-i18n="lySkip"></button></p>
+    </div>
+  </div>
+</section>
+
+<section id="history" class="screen">
+  <div class="panel">
+    <div class="bar"><h2 data-i18n="tileHistory"></h2><button class="btn" data-go="title" data-i18n="back"></button></div>
+    <table class="hist"><thead><tr><th data-i18n="colDate"></th><th data-i18n="colSong"></th><th data-i18n="colScore"></th><th data-i18n="colRank"></th></tr></thead><tbody id="histBody"></tbody></table>
+  </div>
+</section>
+
+<section id="calib" class="screen">
+  <div class="panel">
+    <div class="bar"><h2 data-i18n="tileCalib"></h2><button class="btn" data-go="title" data-i18n="back"></button></div>
+    <p class="note" data-i18n="calibHelp"></p>
+    <p><button class="btn primary" id="calibStart" data-i18n="calibStart"></button></p>
+    <div class="log" id="calibLog"></div>
+    <p><input type="range" id="latency" min="0" max="400" step="5"> <span class="big" id="latencyVal"></span></p>
+    <p><button class="btn" id="calibSave" data-i18n="calibSave"></button></p>
+  </div>
+</section>
+
+<section id="loading" class="screen"><div class="big" data-i18n="loading"></div></section>
+
+<section id="result" class="screen">
+  <div class="result-card">
+    <h2 data-i18n="resultTitle"></h2>
+    <div class="song" id="resSong"></div>
+    <div class="score-row"><div class="score"><span id="resScore">0.00</span><small data-i18n="points"></small></div><div class="rank" id="resRank"></div></div>
+    <div class="res-grid">
+      <canvas id="radar" width="340" height="310"></canvas>
+      <div>
+        <table class="tech" id="resTech"></table>
+        <div style="margin-top:14px"><span data-i18n="tendency"></span>：<b id="resTend"></b></div>
+        <div class="gauge"><i id="resGauge"></i></div>
+        <div class="gauge-l"><span data-i18n="early"></span><span data-i18n="just"></span><span data-i18n="late"></span></div>
+      </div>
+    </div>
+    <p class="comment" id="resComment"></p>
+    <div class="bar" style="justify-content:center;margin:0">
+      <button class="btn primary" id="again" data-i18n="again"></button>
+      <button class="btn" data-go="songs" data-i18n="toSongs"></button>
+    </div>
+  </div>
+</section>
+
+<div id="playbar" hidden>
+  <div class="pb"><span data-i18n="pbAll"></span>
+    <button data-adj="all:-0.05" data-i18n-title="pbEarlier">−</button><b id="pbAll" data-i18n-title="pbReset"></b><button data-adj="all:0.05" data-i18n-title="pbLater">+</button></div>
+  <div class="pb"><span data-i18n="pbLine"></span>
+    <button data-adj="line:-0.05" data-i18n-title="pbEarlier">−</button><b id="pbLine" data-i18n-title="pbReset"></b><button data-adj="line:0.05" data-i18n-title="pbLater">+</button></div>
+  <label class="pb"><span data-i18n="volMusic"></span><input type="range" id="volMusic" min="0" max="150" step="5"></label>
+  <label class="pb"><span data-i18n="volGuide"></span><input type="range" id="volGuide" min="0" max="150" step="5"></label>
+  <span class="pb-saved" id="pbSaved" role="status"></span>
+</div>
+
+<div id="editbar" hidden>
+  <button id="edBack" data-i18n-title="edBack">⏪</button>
+  <button id="edPlay" class="ed-play" data-i18n-title="edPlay">▶</button>
+  <button id="edFwd" data-i18n-title="edFwd">⏩</button>
+  <input type="range" id="edPos" min="0" max="100" step="0.01" data-i18n-title="edPos">
+  <span id="edTime"></span>
+  <span class="ed-break"></span>
+  <span class="ed-line">
+    <button id="edPrev" data-i18n-title="edPrev">▲</button>
+    <span id="edLine"></span>
+    <button id="edNext" data-i18n-title="edNext">▼</button>
+  </span>
+  <button class="btn primary" id="edStart" data-i18n="edStart" data-i18n-title="edStartTip"></button>
+  <button class="btn" id="edDone" data-i18n="edDone"></button>
+</div>
+
+<div id="toast" role="status"></div>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
